@@ -7,24 +7,24 @@
     <packaging>pom</packaging>
     <name>libpay Leumi Card payment gateway adapter aggregator</name>
     <description>libpay module for Leumi Card payment gateway</description>
-	
+
     <parent>
         <groupId>com.wix.pay</groupId>
         <artifactId>libpay-leumicard-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
-		<relativePath>libpay-leumicard-parent</relativePath>
+        <relativePath>libpay-leumicard-parent</relativePath>
     </parent>
- 
- 
+
+
     <scm>
         <url>https://github.com/wix/libpay-leumicard</url>
         <connection>scm:git:git://github.com/wix/libpay-leumicard.git</connection>
         <developerConnection>scm:git:git@github.com:wix/libpay-leumicard.git</developerConnection>
         <tag>HEAD</tag>
     </scm>
- 
- 
+
     <modules>
-        <module>libpay-dengionline-parent</module>
+        <module>libpay-leumicard-parent</module>
+        <module>libpay-leumicard</module>
     </modules>
 </project>
