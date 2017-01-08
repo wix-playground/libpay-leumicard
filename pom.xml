@@ -26,5 +26,7 @@
     <modules>
         <module>libpay-leumicard-parent</module>
         <module>libpay-leumicard</module>
+        <module>libpay-leumicard-testkit</module>
+        <module>libpay-leumicard-common</module>
     </modules>
 </project>
