@@ -54,6 +54,15 @@ class LeumiCardDriver(port: Int) {
       }
     }
 
+    def isRejected = {
+      probe.handlers += {
+        case HttpRequest(HttpMethods.GET, _, _, _, _) =>
+          HttpResponse(
+            status = StatusCodes.OK,
+            entity = HttpEntity(responseContentType, rejectResponse))
+      }
+    }
+
     private def isStubbedUri(uri: Uri) = {
       val uriParams = uri.query
       asRequestParams.forall({ case (key, value) => uriParams.contains((key, value)) })
@@ -79,6 +88,9 @@ class LeumiCardDriver(port: Int) {
 
     private def failResponse =
       s"Id=0&CCode=6&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
+
+    private def rejectResponse =
+      s"Id=0&CCode=33&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
   }
 
 }

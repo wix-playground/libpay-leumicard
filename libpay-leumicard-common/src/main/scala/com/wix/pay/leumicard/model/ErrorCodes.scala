@@ -6,4 +6,5 @@ package com.wix.pay.leumicard.model
 object ErrorCodes {
 
   val Success = "0"
+  val Rejected = "33"
 }

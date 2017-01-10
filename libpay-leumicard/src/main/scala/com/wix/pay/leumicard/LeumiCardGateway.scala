@@ -1,17 +1,15 @@
 package com.wix.pay.leumicard
 
-import java.util.List
 import java.util.{List => JList}
 
-import scala.collection.JavaConversions._
 import com.google.api.client.http._
-import com.wix.pay.{PaymentErrorException, PaymentGateway, PaymentRejectedException}
 import com.wix.pay.creditcard.CreditCard
 import com.wix.pay.leumicard.model.{ErrorCodes, RequestFields, ResponseFields}
 import com.wix.pay.model.{CurrencyAmount, Customer, Deal}
+import com.wix.pay.{PaymentErrorException, PaymentGateway, PaymentRejectedException}
 
 import scala.collection.JavaConversions._
-import scala.collection.{JavaConversions, mutable}
+import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success, Try}
 
@@ -35,25 +33,30 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
       require(creditCard.holderId.isDefined, "Credit Card Holder ID is mandatory for Leumi Card")
 
       val merchant = merchantParser.parse(merchantKey)
-      val response = doRequest(Map(
-        RequestFields.masof -> merchant.masof,
-        RequestFields.action -> "soft",
-        RequestFields.userId -> creditCard.holderId.get,
-        RequestFields.clientName -> customer.get.firstName.get,
-        RequestFields.clientLName -> customer.get.lastName.get,
-        RequestFields.infoPurchaseDesc ->  deal.get.title.get,
-        RequestFields.amount -> currencyAmount.amount.toString,
-        RequestFields.creditCard -> creditCard.number,
-        RequestFields.cvv -> creditCard.csc.get,
-        RequestFields.expMonth -> creditCard.expiration.month.toString,
-        RequestFields.expYear -> creditCard.expiration.year.toString
-      ))
+      val response = doRequest(saleParamsMap(creditCard, currencyAmount, customer, deal, merchant))
 
       response(ResponseFields.id)
     } match {
       case Success(transactionId: String) => Success(transactionId)
+      case Failure(e: PaymentRejectedException) => Failure(e)
       case Failure(e) => Failure(PaymentErrorException(e.getMessage, e))
     }
+  }
+
+  private def saleParamsMap(creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal], merchant: LeumiCardMerchant): Map[String, String] = {
+    Map(
+      RequestFields.masof -> merchant.masof,
+      RequestFields.action -> "soft",
+      RequestFields.userId -> creditCard.holderId.get,
+      RequestFields.clientName -> customer.get.firstName.get,
+      RequestFields.clientLName -> customer.get.lastName.get,
+      RequestFields.infoPurchaseDesc -> deal.get.title.get,
+      RequestFields.amount -> currencyAmount.amount.toString,
+      RequestFields.creditCard -> creditCard.number,
+      RequestFields.cvv -> creditCard.csc.get,
+      RequestFields.expMonth -> creditCard.expiration.month.toString,
+      RequestFields.expYear -> creditCard.expiration.year.toString
+    )
   }
 
   override def authorize(merchantKey: String, creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal]): Try[String] = ???
@@ -92,13 +95,7 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
 
     code match {
       case ErrorCodes.Success => // Operation successful.
-      /*
-            case ErrorCodes.INVALID_CARDHOLDER_NUMBER|
-                 ErrorCodes.INVALID_EXPIRATION|
-                 ErrorCodes.UNAUTHORIZED_CARD|
-                 ErrorCodes.UNAUTHORIZED_COUNTRY => throw PaymentRejectedException(message)
-            case IsAuthorizationError(authorizationCode) => throw PaymentRejectedException(message)
-      */
+      case ErrorCodes.Rejected => throw PaymentRejectedException(code)
       case _ => throw PaymentErrorException(code)
     }
   }

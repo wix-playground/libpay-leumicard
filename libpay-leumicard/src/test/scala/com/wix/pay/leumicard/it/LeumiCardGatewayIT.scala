@@ -1,7 +1,7 @@
 package com.wix.pay.leumicard.it
 
 import com.google.api.client.http.javanet.NetHttpTransport
-import com.wix.pay.PaymentErrorException
+import com.wix.pay.{PaymentErrorException, PaymentRejectedException}
 import com.wix.pay.creditcard.{CreditCard, CreditCardOptionalFields, YearMonth}
 import com.wix.pay.leumicard.{JsonLeumiCardMerchantParser, LeumiCardDriver, LeumiCardGateway, LeumiCardMerchant}
 import com.wix.pay.model.{CurrencyAmount, Customer, Deal, Name}
@@ -69,6 +69,15 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
         deal = Some(deal))
 
       saleResult must beAnInstanceOf[Failure[IllegalArgumentException]]
+    }
+
+    "fail with PaymentRejectedException for rejected transactions" in new Context {
+      givenRequestToLeumiCard.isRejected
+
+      val saleResult = executeValidSale
+
+      saleResult must beAnInstanceOf[Failure[PaymentRejectedException]]
+      saleResult.asInstanceOf[Failure[PaymentRejectedException]].exception must beAnInstanceOf[PaymentRejectedException]
     }
   }
 
