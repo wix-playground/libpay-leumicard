@@ -12,7 +12,7 @@ import scala.util.Failure
 
 class LeumiCardGatewayIT extends SpecWithJUnit {
 
-  val leumiCardPort = 10001
+  val leumiCardPort = 10019
   val requestFactory = new NetHttpTransport().createRequestFactory()
 
   val driver = new LeumiCardDriver(port = leumiCardPort)
@@ -84,7 +84,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
   trait Context extends Scope {
     val leumicardGateway = new LeumiCardGateway(
       requestFactory = requestFactory,
-      payUrl = s"http://localhost:$leumiCardPort/")
+      paymentsEndpointUrl = s"http://localhost:$leumiCardPort/")
 
     val merchantParser = new JsonLeumiCardMerchantParser()
 

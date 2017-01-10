@@ -18,7 +18,7 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
                        connectTimeout: Option[Duration] = None,
                        readTimeout: Option[Duration] = None,
                        numberOfRetries: Int = 0,
-                       payUrl: String = Endpoints.leumiCardPayUrl,
+                       paymentsEndpointUrl: String = Endpoints.leumiCardPayUrl,
                        merchantParser: LeumiCardMerchantParser = new JsonLeumiCardMerchantParser
                       ) extends PaymentGateway {
 
@@ -66,7 +66,7 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
   override def voidAuthorization(merchantKey: String, authorizationKey: String): Try[String] = ???
 
   private def doRequest(params: Map[String, String]): Map[String, String] = {
-    val url = new GenericUrl(payUrl)
+    val url = new GenericUrl(paymentsEndpointUrl)
     params.foreach({ case (key, value) => url.set(key, value) })
 
     val httpRequest = requestFactory.buildGetRequest(url)
