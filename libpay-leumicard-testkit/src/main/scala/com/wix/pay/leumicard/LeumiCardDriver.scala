@@ -3,7 +3,7 @@ package com.wix.pay.leumicard
 import com.wix.hoopoe.http.testkit.EmbeddedHttpProbe
 import com.wix.pay.creditcard.CreditCard
 import com.wix.pay.leumicard.model.RequestFields
-import com.wix.pay.model.CurrencyAmount
+import com.wix.pay.model.{CurrencyAmount, Customer, Deal}
 import spray.http._
 
 class LeumiCardDriver(port: Int) {
@@ -24,13 +24,17 @@ class LeumiCardDriver(port: Int) {
 
   def aSaleFor(masof: String,
                currencyAmount: CurrencyAmount,
-               creditCard: CreditCard) =
-    SaleContext(masof, currencyAmount, creditCard)
+               creditCard: CreditCard,
+               customer: Customer,
+               deal: Deal) =
+    SaleContext(masof, currencyAmount, creditCard, customer, deal)
 
 
   case class SaleContext(masof: String,
                          currencyAmount: CurrencyAmount,
-                         creditCard: CreditCard) {
+                         creditCard: CreditCard,
+                         customer: Customer,
+                         deal: Deal) {
 
     def succeedsWith(transactionId: String) = {
       probe.handlers += {
@@ -56,7 +60,19 @@ class LeumiCardDriver(port: Int) {
     }
 
     private def asRequestParams =
-      Map(RequestFields.masof -> masof)
+      Map(
+        RequestFields.masof -> masof,
+        RequestFields.action -> "soft",
+        RequestFields.userId -> creditCard.holderId.get,
+        RequestFields.clientName -> customer.firstName.get,
+        RequestFields.clientLName -> customer.lastName.get,
+        RequestFields.infoPurchaseDesc ->  deal.title.get,
+        RequestFields.amount -> currencyAmount.amount.toString,
+        RequestFields.creditCard -> creditCard.number,
+        RequestFields.cvv -> creditCard.csc.get,
+        RequestFields.expMonth -> creditCard.expiration.month.toString,
+        RequestFields.expYear -> creditCard.expiration.year.toString
+      )
 
     private def successfulResponse(transactionId: String) =
       s"Id=$transactionId&CCode=0&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="

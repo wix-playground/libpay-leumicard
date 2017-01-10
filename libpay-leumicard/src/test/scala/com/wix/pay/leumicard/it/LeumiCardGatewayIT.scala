@@ -4,7 +4,7 @@ import com.google.api.client.http.javanet.NetHttpTransport
 import com.wix.pay.PaymentErrorException
 import com.wix.pay.creditcard.{CreditCard, CreditCardOptionalFields, YearMonth}
 import com.wix.pay.leumicard.{JsonLeumiCardMerchantParser, LeumiCardDriver, LeumiCardGateway, LeumiCardMerchant}
-import com.wix.pay.model.CurrencyAmount
+import com.wix.pay.model.{CurrencyAmount, Customer, Deal, Name}
 import org.specs2.mutable.SpecWithJUnit
 import org.specs2.specification.Scope
 
@@ -25,40 +25,50 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
 
   "sale request via Leumi Card gateway" should {
     "successfully yield transaction id on valid request" in new Context {
-      driver.aSaleFor(
-        masof = merchant.masof,
-        currencyAmount = currencyAmount,
-        creditCard = buyerCreditCard) succeedsWith (transactionId = successfulTransactionId)
+      givenRequestToLeumiCard succeedsWith (transactionId = successfulTransactionId)
 
-      val saleResult = leumicardGateway.sale(
-        merchantKey = merchantKey,
-        creditCard = buyerCreditCard,
-        currencyAmount = currencyAmount)
+      val saleResult = executeValidSale
 
       saleResult must beSuccessfulTry(check = beEqualTo(successfulTransactionId))
     }
 
-    "fail with invalid merchant format" in new Context {
+    "fail for invalid merchant format" in new Context {
       val saleResult = leumicardGateway.sale(
         merchantKey = "bla bla",
         creditCard = buyerCreditCard,
-        currencyAmount = currencyAmount)
+        currencyAmount = currencyAmount,
+        customer = Some(customer),
+        deal = Some(deal))
 
       saleResult must beAnInstanceOf[Failure[PaymentErrorException]]
     }
 
     "fail when sale is not successful" in new Context {
-      driver.aSaleFor(
-        masof = merchant.masof,
-        currencyAmount = currencyAmount,
-        creditCard = buyerCreditCard) errors
+      givenRequestToLeumiCard.errors
 
+      val saleResult = executeValidSale
+
+      saleResult must beAnInstanceOf[Failure[PaymentErrorException]]
+    }
+
+    "fail if deal is not provided" in new Context {
       val saleResult = leumicardGateway.sale(
         merchantKey = merchantKey,
         creditCard = buyerCreditCard,
-        currencyAmount = currencyAmount)
+        currencyAmount = currencyAmount,
+        customer = Some(customer))
 
-      saleResult must beAnInstanceOf[Failure[PaymentErrorException]]
+      saleResult must beAnInstanceOf[Failure[IllegalArgumentException]]
+    }
+
+    "fail if customer is not provided" in new Context {
+      val saleResult = leumicardGateway.sale(
+        merchantKey = merchantKey,
+        creditCard = buyerCreditCard,
+        currencyAmount = currencyAmount,
+        deal = Some(deal))
+
+      saleResult must beAnInstanceOf[Failure[IllegalArgumentException]]
     }
   }
 
@@ -77,12 +87,36 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
       YearMonth(2020, 12),
       Some(CreditCardOptionalFields.withFields(
         csc = Some("123"),
-        holderName = Some("some holder name"),
-        billingAddress = Some("some billing address"),
-        billingPostalCode = Some("90210"))))
+        holderId = Some("0123456"))))
+
+    val deal = Deal(
+      id = System.currentTimeMillis().toString,
+      title = Some("some deal title")
+    )
+
+    val customer = Customer(
+      name = Some(Name(first = "John", last = "Doe"))
+    )
 
     val successfulTransactionId = "4638202"
 
     driver.resetProbe()
+
+    def givenRequestToLeumiCard: driver.SaleContext = {
+      driver.aSaleFor(
+        masof = merchant.masof,
+        currencyAmount = currencyAmount,
+        creditCard = buyerCreditCard,
+        customer = customer,
+        deal = deal)
+    }
+
+    def executeValidSale =
+      leumicardGateway.sale(
+        merchantKey = merchantKey,
+        creditCard = buyerCreditCard,
+        currencyAmount = currencyAmount,
+        customer = Some(customer),
+        deal = Some(deal))
   }
 }

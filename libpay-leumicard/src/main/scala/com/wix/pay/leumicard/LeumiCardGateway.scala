@@ -26,8 +26,28 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
 
   override def sale(merchantKey: String, creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal]): Try[String] = {
     Try {
+      require(deal.isDefined, "Deal is mandatory for Leumi Card")
+      require(deal.get.title.isDefined, "Deal Title is mandatory for Leumi Card")
+      require(customer.isDefined, "Customer is mandatory for Leumi Card")
+      require(customer.get.firstName.isDefined, "Customer First Name is mandatory for Leumi Card")
+      require(customer.get.lastName.isDefined, "Customer Last Name is mandatory for Leumi Card")
+      require(creditCard.csc.isDefined, "Credit Card CVV is mandatory for Leumi Card")
+      require(creditCard.holderId.isDefined, "Credit Card Holder ID is mandatory for Leumi Card")
+
       val merchant = merchantParser.parse(merchantKey)
-      val response = doRequest(Map(RequestFields.masof -> merchant.masof))
+      val response = doRequest(Map(
+        RequestFields.masof -> merchant.masof,
+        RequestFields.action -> "soft",
+        RequestFields.userId -> creditCard.holderId.get,
+        RequestFields.clientName -> customer.get.firstName.get,
+        RequestFields.clientLName -> customer.get.lastName.get,
+        RequestFields.infoPurchaseDesc ->  deal.get.title.get,
+        RequestFields.amount -> currencyAmount.amount.toString,
+        RequestFields.creditCard -> creditCard.number,
+        RequestFields.cvv -> creditCard.csc.get,
+        RequestFields.expMonth -> creditCard.expiration.month.toString,
+        RequestFields.expYear -> creditCard.expiration.year.toString
+      ))
 
       response(ResponseFields.id)
     } match {
@@ -72,13 +92,13 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
 
     code match {
       case ErrorCodes.Success => // Operation successful.
-/*
-      case ErrorCodes.INVALID_CARDHOLDER_NUMBER|
-           ErrorCodes.INVALID_EXPIRATION|
-           ErrorCodes.UNAUTHORIZED_CARD|
-           ErrorCodes.UNAUTHORIZED_COUNTRY => throw PaymentRejectedException(message)
-      case IsAuthorizationError(authorizationCode) => throw PaymentRejectedException(message)
-*/
+      /*
+            case ErrorCodes.INVALID_CARDHOLDER_NUMBER|
+                 ErrorCodes.INVALID_EXPIRATION|
+                 ErrorCodes.UNAUTHORIZED_CARD|
+                 ErrorCodes.UNAUTHORIZED_COUNTRY => throw PaymentRejectedException(message)
+            case IsAuthorizationError(authorizationCode) => throw PaymentRejectedException(message)
+      */
       case _ => throw PaymentErrorException(code)
     }
   }

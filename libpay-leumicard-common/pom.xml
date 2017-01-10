@@ -12,6 +12,16 @@
 
     <artifactId>libpay-leumicard-common</artifactId>
 
+    <developers>
+        <developer>
+            <name>Tzufit Barzilay</name>
+            <email>tzufitb@wix.com</email>
+            <roles>
+                <role>owner</role>
+            </roles>
+        </developer>
+    </developers>
+
     <dependencies>
         <dependency>
             <groupId>com.wix.pay</groupId>

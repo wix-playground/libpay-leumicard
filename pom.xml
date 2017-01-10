@@ -23,6 +23,16 @@
         <tag>HEAD</tag>
     </scm>
 
+    <developers>
+        <developer>
+            <name>Tzufit Barzilay</name>
+            <email>tzufitb@wix.com</email>
+            <roles>
+                <role>owner</role>
+            </roles>
+        </developer>
+    </developers>
+
     <modules>
         <module>libpay-leumicard-parent</module>
         <module>libpay-leumicard</module>
