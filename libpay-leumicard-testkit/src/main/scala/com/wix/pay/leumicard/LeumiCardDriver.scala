@@ -89,7 +89,8 @@ class LeumiCardDriver(port: Int) {
         RequestFields.creditCard -> creditCard.number,
         RequestFields.cvv -> creditCard.csc.get,
         RequestFields.expMonth -> creditCard.expiration.month.toString,
-        RequestFields.expYear -> creditCard.expiration.year.toString
+        RequestFields.expYear -> creditCard.expiration.year.toString,
+        RequestFields.installments -> "1"
       )
 
     def successfulResponse(transactionId: String): String
