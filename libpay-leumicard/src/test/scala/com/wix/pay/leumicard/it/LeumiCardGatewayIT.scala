@@ -8,7 +8,8 @@ import com.wix.pay.model.{CurrencyAmount, Customer, Deal, Name}
 import org.specs2.mutable.SpecWithJUnit
 import org.specs2.specification.Scope
 
-import scala.util.Failure
+import scala.reflect.ClassTag
+import scala.util.{Failure, Try}
 
 class LeumiCardGatewayIT extends SpecWithJUnit {
 
@@ -25,7 +26,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
 
   "sale request via Leumi Card gateway" should {
     "successfully yield transaction id on valid request" in new Context {
-      givenRequestToLeumiCard succeedsWith (transactionId = successfulTransactionId)
+      givenSaleRequestToLeumiCard succeedsWith (transactionId = successfulTransactionId)
 
       val saleResult = executeValidSale
 
@@ -44,11 +45,11 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
     }
 
     "fail when sale is not successful" in new Context {
-      givenRequestToLeumiCard.errors
+      givenSaleRequestToLeumiCard.errors
 
       val saleResult = executeValidSale
 
-      saleResult must beAnInstanceOf[Failure[PaymentErrorException]]
+      assertFailure[PaymentErrorException](saleResult)
     }
 
     "fail if deal is not provided" in new Context {
@@ -58,7 +59,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
         currencyAmount = currencyAmount,
         customer = Some(customer))
 
-      saleResult must beAnInstanceOf[Failure[IllegalArgumentException]]
+      assertFailure[PaymentErrorException](saleResult)
     }
 
     "fail if customer is not provided" in new Context {
@@ -68,20 +69,59 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
         currencyAmount = currencyAmount,
         deal = Some(deal))
 
-      saleResult must beAnInstanceOf[Failure[IllegalArgumentException]]
+      assertFailure[PaymentErrorException](saleResult)
     }
 
     "fail with PaymentRejectedException for rejected transactions" in new Context {
-      givenRequestToLeumiCard.isRejected
+      givenSaleRequestToLeumiCard.isRejected
 
       val saleResult = executeValidSale
 
-      saleResult must beAnInstanceOf[Failure[PaymentRejectedException]]
-      saleResult.asInstanceOf[Failure[PaymentRejectedException]].exception must beAnInstanceOf[PaymentRejectedException]
+      assertFailure[PaymentRejectedException](saleResult)
     }
   }
 
-  trait Context extends Scope {
+  "authorize request via Leumi Card gateway" should {
+    "successfully yield transaction id on valid request" in new Context {
+      givenAuthorizeRequestToLeumiCard succeedsWith (transactionId = successfulTransactionId)
+
+      val authorizeResult = executeValidAuthorize
+
+      authorizeResult must beSuccessfulTry(check = beEqualTo(successfulTransactionId))
+    }
+
+    "fail for invalid merchant format" in new Context {
+      val authorizeResult = leumicardGateway.authorize(
+        merchantKey = "bla bla",
+        creditCard = buyerCreditCard,
+        currencyAmount = currencyAmount,
+        customer = Some(customer),
+        deal = Some(deal))
+
+      assertFailure[PaymentErrorException](authorizeResult)
+    }
+
+    "fail when authorize is not successful" in new Context {
+      givenAuthorizeRequestToLeumiCard.errors
+
+      val authorizeResult = executeValidSale
+
+      assertFailure[PaymentErrorException](authorizeResult)
+    }
+
+    "fail if deal is not provided" in new Context {
+      val authorizeResult = leumicardGateway.authorize(
+        merchantKey = merchantKey,
+        creditCard = buyerCreditCard,
+        currencyAmount = currencyAmount,
+        customer = Some(customer))
+
+      assertFailure[PaymentErrorException](authorizeResult)
+    }
+  }
+
+
+    trait Context extends Scope {
     val leumicardGateway = new LeumiCardGateway(
       requestFactory = requestFactory,
       paymentsEndpointUrl = s"http://localhost:$leumiCardPort/")
@@ -111,8 +151,17 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
 
     driver.resetProbe()
 
-    def givenRequestToLeumiCard: driver.SaleContext = {
+    def givenSaleRequestToLeumiCard: driver.SaleContext = {
       driver.aSaleFor(
+        masof = merchant.masof,
+        currencyAmount = currencyAmount,
+        creditCard = buyerCreditCard,
+        customer = customer,
+        deal = deal)
+    }
+
+    def givenAuthorizeRequestToLeumiCard: driver.AuthorizeContext = {
+      driver.anAuthorizeFor(
         masof = merchant.masof,
         currencyAmount = currencyAmount,
         creditCard = buyerCreditCard,
@@ -127,5 +176,19 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
         currencyAmount = currencyAmount,
         customer = Some(customer),
         deal = Some(deal))
+
+    def executeValidAuthorize =
+      leumicardGateway.authorize(
+        merchantKey = merchantKey,
+        creditCard = buyerCreditCard,
+        currencyAmount = currencyAmount,
+        customer = Some(customer),
+        deal = Some(deal))
+  }
+
+  def assertFailure[T: ClassTag](result: Try[String]) = {
+    result must beAnInstanceOf[Failure[PaymentRejectedException]]
+
+    result.asInstanceOf[Failure[PaymentRejectedException]].exception must beAnInstanceOf[T]
   }
 }

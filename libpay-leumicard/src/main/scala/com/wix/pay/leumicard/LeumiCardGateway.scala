@@ -24,13 +24,7 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
 
   override def sale(merchantKey: String, creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal]): Try[String] = {
     Try {
-      require(deal.isDefined, "Deal is mandatory for Leumi Card")
-      require(deal.get.title.isDefined, "Deal Title is mandatory for Leumi Card")
-      require(customer.isDefined, "Customer is mandatory for Leumi Card")
-      require(customer.get.firstName.isDefined, "Customer First Name is mandatory for Leumi Card")
-      require(customer.get.lastName.isDefined, "Customer Last Name is mandatory for Leumi Card")
-      require(creditCard.csc.isDefined, "Credit Card CVV is mandatory for Leumi Card")
-      require(creditCard.holderId.isDefined, "Credit Card Holder ID is mandatory for Leumi Card")
+      verifyRequiredParams(creditCard, customer, deal)
 
       val merchant = merchantParser.parse(merchantKey)
       val response = doRequest(saleParamsMap(creditCard, currencyAmount, customer, deal, merchant))
@@ -41,6 +35,43 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
       case Failure(e: PaymentRejectedException) => Failure(e)
       case Failure(e) => Failure(PaymentErrorException(e.getMessage, e))
     }
+  }
+
+  override def authorize(merchantKey: String, creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal]): Try[String] = {
+    Try {
+
+      verifyRequiredParams(creditCard, customer, deal)
+
+      val merchant = merchantParser.parse(merchantKey)
+      val response = doRequest(authorizeParamsMap(creditCard, currencyAmount, customer, deal, merchant))
+
+      verifyPostponedResponse(response)
+
+      response(ResponseFields.id)
+    } match {
+      case Success(transactionId: String) => Success(transactionId)
+      case Failure(e: PaymentRejectedException) => Failure(e)
+      case Failure(e) => Failure(PaymentErrorException(e.getMessage, e))
+    }
+  }
+
+  private def verifyRequiredParams(creditCard: CreditCard, customer: Option[Customer], deal: Option[Deal]): Unit = {
+    require(deal.isDefined, "Deal is mandatory for Leumi Card")
+    require(deal.get.title.isDefined, "Deal Title is mandatory for Leumi Card")
+    require(customer.isDefined, "Customer is mandatory for Leumi Card")
+    require(customer.get.firstName.isDefined, "Customer First Name is mandatory for Leumi Card")
+    require(customer.get.lastName.isDefined, "Customer Last Name is mandatory for Leumi Card")
+    require(creditCard.csc.isDefined, "Credit Card CVV is mandatory for Leumi Card")
+    require(creditCard.holderId.isDefined, "Credit Card Holder ID is mandatory for Leumi Card")
+  }
+
+
+  override def capture(merchantKey: String, authorizationKey: String, amount: Double): Try[String] = ???
+
+  override def voidAuthorization(merchantKey: String, authorizationKey: String): Try[String] = ???
+
+  private def authorizeParamsMap(creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal], merchant: LeumiCardMerchant): Map[String, String] = {
+    saleParamsMap(creditCard, currencyAmount, customer, deal, merchant) + (RequestFields.postpone -> "True")
   }
 
   private def saleParamsMap(creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal], merchant: LeumiCardMerchant): Map[String, String] = {
@@ -58,12 +89,6 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
       RequestFields.expYear -> creditCard.expiration.year.toString
     )
   }
-
-  override def authorize(merchantKey: String, creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal]): Try[String] = ???
-
-  override def capture(merchantKey: String, authorizationKey: String, amount: Double): Try[String] = ???
-
-  override def voidAuthorization(merchantKey: String, authorizationKey: String): Try[String] = ???
 
   private def doRequest(params: Map[String, String]): Map[String, String] = {
     val url = new GenericUrl(paymentsEndpointUrl)
@@ -95,7 +120,17 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
 
     code match {
       case ErrorCodes.Success => // Operation successful.
+      case ErrorCodes.Postponed =>
       case ErrorCodes.Rejected => throw PaymentRejectedException(code)
+      case _ => throw PaymentErrorException(code)
+    }
+  }
+
+  private def verifyPostponedResponse(response: Map[String, String]): Unit = {
+    val code = response(ResponseFields.ccode)
+
+    code match {
+      case ErrorCodes.Postponed =>
       case _ => throw PaymentErrorException(code)
     }
   }

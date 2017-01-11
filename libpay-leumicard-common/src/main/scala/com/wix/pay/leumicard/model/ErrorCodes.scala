@@ -7,4 +7,5 @@ object ErrorCodes {
 
   val Success = "0"
   val Rejected = "33"
+  val Postponed = "800"
 }

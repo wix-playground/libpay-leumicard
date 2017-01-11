@@ -4,7 +4,7 @@ import com.wix.hoopoe.http.testkit.EmbeddedHttpProbe
 import com.wix.pay.creditcard.CreditCard
 import com.wix.pay.leumicard.model.RequestFields
 import com.wix.pay.model.{CurrencyAmount, Customer, Deal}
-import spray.http._
+import spray.http.{HttpEntity, _}
 
 class LeumiCardDriver(port: Int) {
   private val probe = new EmbeddedHttpProbe(port, EmbeddedHttpProbe.NotFoundHandler)
@@ -22,6 +22,13 @@ class LeumiCardDriver(port: Int) {
     probe.handlers.clear()
   }
 
+  def anAuthorizeFor(masof: String,
+                     currencyAmount: CurrencyAmount,
+                     creditCard: CreditCard,
+                     customer: Customer,
+                     deal: Deal) =
+    AuthorizeContext(masof, currencyAmount, creditCard, customer, deal)
+
   def aSaleFor(masof: String,
                currencyAmount: CurrencyAmount,
                creditCard: CreditCard,
@@ -30,11 +37,12 @@ class LeumiCardDriver(port: Int) {
     SaleContext(masof, currencyAmount, creditCard, customer, deal)
 
 
-  case class SaleContext(masof: String,
-                         currencyAmount: CurrencyAmount,
-                         creditCard: CreditCard,
-                         customer: Customer,
-                         deal: Deal) {
+  trait RequestContext {
+    def masof: String
+    def currencyAmount: CurrencyAmount
+    def creditCard: CreditCard
+    def customer: Customer
+    def deal: Deal
 
     def succeedsWith(transactionId: String) = {
       probe.handlers += {
@@ -63,12 +71,13 @@ class LeumiCardDriver(port: Int) {
       }
     }
 
+
     private def isStubbedUri(uri: Uri) = {
       val uriParams = uri.query
       asRequestParams.forall({ case (key, value) => uriParams.contains((key, value)) })
     }
 
-    private def asRequestParams =
+    protected def asRequestParams =
       Map(
         RequestFields.masof -> masof,
         RequestFields.action -> "soft",
@@ -83,14 +92,36 @@ class LeumiCardDriver(port: Int) {
         RequestFields.expYear -> creditCard.expiration.year.toString
       )
 
-    private def successfulResponse(transactionId: String) =
-      s"Id=$transactionId&CCode=0&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
+    def successfulResponse(transactionId: String): String
 
-    private def failResponse =
+    def failResponse =
       s"Id=0&CCode=6&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
 
-    private def rejectResponse =
+    def rejectResponse =
       s"Id=0&CCode=33&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
+
+  }
+
+  case class AuthorizeContext(masof: String,
+                              currencyAmount: CurrencyAmount,
+                              creditCard: CreditCard,
+                              customer: Customer,
+                              deal: Deal) extends RequestContext {
+    override protected def asRequestParams: Map[String, String] = super.asRequestParams + (RequestFields.postpone -> "True")
+
+    def successfulResponse(transactionId: String) =
+      s"Id=$transactionId&CCode=800&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
+
+  }
+
+  case class SaleContext(masof: String,
+                         currencyAmount: CurrencyAmount,
+                         creditCard: CreditCard,
+                         customer: Customer,
+                         deal: Deal) extends RequestContext {
+
+    def successfulResponse(transactionId: String) =
+      s"Id=$transactionId&CCode=0&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
   }
 
 }

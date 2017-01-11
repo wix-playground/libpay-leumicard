@@ -15,4 +15,5 @@ object RequestFields {
   val cvv = "Cvv"
   val expMonth = "Tmonth"
   val expYear = "Tyear"
+  val postpone = "Postpone"
 }
