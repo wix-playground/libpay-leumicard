@@ -36,13 +36,14 @@ class LeumiCardDriver(port: Int) {
                deal: Deal) =
     SaleContext(masof, currencyAmount, creditCard, customer, deal)
 
+  def aCaptureFor(masof: String,
+                  currencyAmount: CurrencyAmount,
+                  authorizationKey: String) =
+    CaptureContext(masof, currencyAmount, authorizationKey)
 
   trait RequestContext {
-    def masof: String
-    def currencyAmount: CurrencyAmount
-    def creditCard: CreditCard
-    def customer: Customer
-    def deal: Deal
+
+    def asRequestParams: Map[String, String]
 
     def succeedsWith(transactionId: String) = {
       probe.handlers += {
@@ -77,22 +78,6 @@ class LeumiCardDriver(port: Int) {
       asRequestParams.forall({ case (key, value) => uriParams.contains((key, value)) })
     }
 
-    protected def asRequestParams =
-      Map(
-        RequestFields.masof -> masof,
-        RequestFields.action -> "soft",
-        RequestFields.userId -> creditCard.holderId.get,
-        RequestFields.clientName -> customer.firstName.get,
-        RequestFields.clientLName -> customer.lastName.get,
-        RequestFields.infoPurchaseDesc ->  deal.title.get,
-        RequestFields.amount -> currencyAmount.amount.toString,
-        RequestFields.creditCard -> creditCard.number,
-        RequestFields.cvv -> creditCard.csc.get,
-        RequestFields.expMonth -> creditCard.expiration.month.toString,
-        RequestFields.expYear -> creditCard.expiration.year.toString,
-        RequestFields.installments -> "1"
-      )
-
     def successfulResponse(transactionId: String): String
 
     def failResponse =
@@ -108,7 +93,8 @@ class LeumiCardDriver(port: Int) {
                               creditCard: CreditCard,
                               customer: Customer,
                               deal: Deal) extends RequestContext {
-    override protected def asRequestParams: Map[String, String] = super.asRequestParams + (RequestFields.postpone -> "True")
+    def asRequestParams =
+      SaleContext(masof, currencyAmount, creditCard, customer, deal).asRequestParams + (RequestFields.postpone -> "True")
 
     def successfulResponse(transactionId: String) =
       s"Id=$transactionId&CCode=800&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
@@ -121,8 +107,39 @@ class LeumiCardDriver(port: Int) {
                          customer: Customer,
                          deal: Deal) extends RequestContext {
 
+    def asRequestParams =
+      Map(
+        RequestFields.masof -> masof,
+        RequestFields.action -> "soft",
+        RequestFields.userId -> creditCard.holderId.get,
+        RequestFields.clientName -> customer.firstName.get,
+        RequestFields.clientLName -> customer.lastName.get,
+        RequestFields.infoPurchaseDesc ->  deal.title.get,
+        RequestFields.amount -> currencyAmount.amount.toString,
+        RequestFields.creditCard -> creditCard.number,
+        RequestFields.cvv -> creditCard.csc.get,
+        RequestFields.expMonth -> creditCard.expiration.month.toString,
+        RequestFields.expYear -> creditCard.expiration.year.toString,
+        RequestFields.installments -> "1"
+      )
+
     def successfulResponse(transactionId: String) =
       s"Id=$transactionId&CCode=0&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
   }
 
+  case class CaptureContext(masof: String,
+                            currencyAmount: CurrencyAmount,
+                            authorizationKey: String) extends RequestContext {
+
+    def asRequestParams: Map[String, String] =
+      Map(
+        RequestFields.masof -> masof,
+        RequestFields.action -> "commitTrans",
+        RequestFields.transactionId -> authorizationKey
+      )
+
+    def successfulResponse(transactionId: String): String =
+      s"Id=$transactionId&CCode=0&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
+
+  }
 }

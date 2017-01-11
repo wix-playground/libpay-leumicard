@@ -26,7 +26,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
 
   "sale request via Leumi Card gateway" should {
     "successfully yield transaction id on valid request" in new Context {
-      givenSaleRequestToLeumiCard succeedsWith (transactionId = successfulTransactionId)
+      givenSaleRequestToLeumiCard succeedsWith successfulTransactionId
 
       val saleResult = executeValidSale
 
@@ -83,7 +83,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
 
   "authorize request via Leumi Card gateway" should {
     "successfully yield transaction id on valid request" in new Context {
-      givenAuthorizeRequestToLeumiCard succeedsWith (transactionId = successfulTransactionId)
+      givenAuthorizeRequestToLeumiCard succeedsWith successfulTransactionId
 
       val authorizeResult = executeValidAuthorize
 
@@ -120,8 +120,34 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
     }
   }
 
+  "capture request via Leumi Card gateway" should {
+    "successfully yield transaction id on valid request" in new Context {
+      givenCaptureRequestToLeumiCard succeedsWith successfulTransactionId
 
-    trait Context extends Scope {
+      val captureResult  = executeValidCapture
+
+      captureResult must beSuccessfulTry(check = beEqualTo(successfulTransactionId))
+    }
+
+    "fail for invalid merchant format" in new Context {
+      val captureResult = leumicardGateway.capture(
+        merchantKey = "bla bla",
+        amount = currencyAmount.amount,
+        authorizationKey = successfulTransactionId)
+
+      assertFailure[PaymentErrorException](captureResult)
+    }
+
+    "fail when capture is not successful" in new Context {
+      givenCaptureRequestToLeumiCard.errors
+
+      val captureResult = executeValidCapture
+
+      assertFailure[PaymentErrorException](captureResult)
+    }
+  }
+
+  trait Context extends Scope {
     val leumicardGateway = new LeumiCardGateway(
       requestFactory = requestFactory,
       paymentsEndpointUrl = s"http://localhost:$leumiCardPort/")
@@ -169,6 +195,13 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
         deal = deal)
     }
 
+    def givenCaptureRequestToLeumiCard: driver.CaptureContext = {
+      driver.aCaptureFor(
+        masof = merchant.masof,
+        currencyAmount = currencyAmount,
+        authorizationKey = successfulTransactionId)
+    }
+
     def executeValidSale =
       leumicardGateway.sale(
         merchantKey = merchantKey,
@@ -184,6 +217,12 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
         currencyAmount = currencyAmount,
         customer = Some(customer),
         deal = Some(deal))
+
+    def executeValidCapture =
+      leumicardGateway.capture(
+        merchantKey = merchantKey,
+        authorizationKey = successfulTransactionId,
+        amount = currencyAmount.amount)
   }
 
   def assertFailure[T: ClassTag](result: Try[String]) = {

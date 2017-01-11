@@ -28,6 +28,9 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
 
       val merchant = merchantParser.parse(merchantKey)
       val response = doRequest(saleParamsMap(creditCard, currencyAmount, customer, deal, merchant))
+      val responseCode = response(ResponseFields.ccode)
+
+      verifySuccess(responseCode)
 
       response(ResponseFields.id)
     } match {
@@ -39,13 +42,29 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
 
   override def authorize(merchantKey: String, creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal]): Try[String] = {
     Try {
-
       verifyRequiredParams(creditCard, customer, deal)
 
       val merchant = merchantParser.parse(merchantKey)
       val response = doRequest(authorizeParamsMap(creditCard, currencyAmount, customer, deal, merchant))
+      val responseCode = response(ResponseFields.ccode)
 
-      verifyPostponedResponse(response)
+      verifyPostponed(responseCode)
+
+      response(ResponseFields.id)
+    } match {
+      case Success(transactionId: String) => Success(transactionId)
+      case Failure(e: PaymentRejectedException) => Failure(e)
+      case Failure(e) => Failure(PaymentErrorException(e.getMessage, e))
+    }
+  }
+
+  override def capture(merchantKey: String, authorizationKey: String, amount: Double): Try[String] = {
+    Try {
+      val merchant = merchantParser.parse(merchantKey)
+      val response = doRequest(captureParamsMap(authorizationKey, merchant))
+      val responseCode = response(ResponseFields.ccode)
+
+      verifySuccess(responseCode)
 
       response(ResponseFields.id)
     } match {
@@ -66,9 +85,16 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
   }
 
 
-  override def capture(merchantKey: String, authorizationKey: String, amount: Double): Try[String] = ???
 
   override def voidAuthorization(merchantKey: String, authorizationKey: String): Try[String] = ???
+
+  private def captureParamsMap(transactionId: String, merchant: LeumiCardMerchant): Map[String, String] = {
+    Map(
+      RequestFields.action -> "commitTrans",
+      RequestFields.masof -> merchant.masof,
+      RequestFields.transactionId -> transactionId
+    )
+  }
 
   private def authorizeParamsMap(creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal], merchant: LeumiCardMerchant): Map[String, String] = {
     saleParamsMap(creditCard, currencyAmount, customer, deal, merchant) + (RequestFields.postpone -> "True")
@@ -102,7 +128,6 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
     httpRequest.setNumberOfRetries(numberOfRetries)
 
     val response = extractAndCloseResponse(httpRequest.execute())
-    verifyLeumiCardResponse(response)
     response
   }
 
@@ -116,24 +141,28 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
     }
   }
 
-  private def verifyLeumiCardResponse(response: Map[String, String]): Unit = {
-    val code = response(ResponseFields.ccode)
-
-    code match {
-      case ErrorCodes.Success => // Operation successful.
-      case ErrorCodes.Postponed =>
-      case ErrorCodes.Rejected => throw PaymentRejectedException(code)
-      case _ => throw PaymentErrorException(code)
-    }
+  private def verifySuccess(code: String): Unit = {
+    (isSuccess orElse isReject orElse throwErrorException)(code)
   }
 
-  private def verifyPostponedResponse(response: Map[String, String]): Unit = {
-    val code = response(ResponseFields.ccode)
+  private def verifyPostponed(code: String): Unit = {
+    (isPostpone orElse isReject orElse throwErrorException)(code)
+  }
 
-    code match {
-      case ErrorCodes.Postponed =>
-      case _ => throw PaymentErrorException(code)
-    }
+  private def throwErrorException: PartialFunction[String, Unit] = {
+    case code => throw PaymentErrorException(code)
+  }
+
+  private def isPostpone: PartialFunction[String, Unit] = {
+    case ErrorCodes.Postponed =>
+  }
+
+  private def isSuccess: PartialFunction[String, Unit] = {
+    case ErrorCodes.Success =>
+  }
+
+  private def isReject: PartialFunction[String, Unit] = {
+    case ErrorCodes.Rejected => throw PaymentRejectedException()
   }
 }
 
