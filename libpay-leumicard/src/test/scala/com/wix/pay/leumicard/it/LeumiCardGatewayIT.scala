@@ -3,8 +3,9 @@ package com.wix.pay.leumicard.it
 import com.google.api.client.http.javanet.NetHttpTransport
 import com.wix.pay.{PaymentErrorException, PaymentRejectedException}
 import com.wix.pay.creditcard.{CreditCard, CreditCardOptionalFields, YearMonth}
-import com.wix.pay.leumicard.{JsonLeumiCardMerchantParser, LeumiCardDriver, LeumiCardGateway, LeumiCardMerchant}
+import com.wix.pay.leumicard._
 import com.wix.pay.model.{CurrencyAmount, Customer, Deal, Name}
+import org.specs2.matcher.Matcher
 import org.specs2.mutable.SpecWithJUnit
 import org.specs2.specification.Scope
 
@@ -17,6 +18,9 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
   val requestFactory = new NetHttpTransport().createRequestFactory()
 
   val driver = new LeumiCardDriver(port = leumiCardPort, password = "some-password")
+  val authorizationParser = new JsonLeumiCardAuthorizationParser
+
+
 
   step {
     driver.startProbe()
@@ -87,7 +91,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
 
       val authorizeResult = executeValidAuthorize
 
-      authorizeResult must beSuccessfulTry(check = beEqualTo(successfulTransactionId))
+      authorizeResult must beSuccessfulTry(check = beAuthorizationKeyWith(successfulTransactionId))
     }
 
     "fail for invalid merchant format" in new Context {
@@ -227,8 +231,10 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
   }
 
   def assertFailure[T: ClassTag](result: Try[String]) = {
-    result must beAnInstanceOf[Failure[PaymentRejectedException]]
+    result must beAFailedTry(check = beAnInstanceOf[T])
+  }
 
-    result.asInstanceOf[Failure[PaymentRejectedException]].exception must beAnInstanceOf[T]
+  def beAuthorizationKeyWith(transactionId: String): Matcher[String] = {
+    beEqualTo(transactionId) ^^ {authorizationParser.parse(_: String).transactionId }
   }
 }

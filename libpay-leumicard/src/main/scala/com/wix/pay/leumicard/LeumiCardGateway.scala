@@ -20,6 +20,7 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
                        numberOfRetries: Int = 0,
                        paymentsEndpointUrl: String = Endpoints.leumiCardPayUrl,
                        merchantParser: LeumiCardMerchantParser = new JsonLeumiCardMerchantParser,
+                       authorizationParser: LeumiCardAuthorizationParser = new JsonLeumiCardAuthorizationParser,
                        password: String = ""
                       ) extends PaymentGateway {
 
@@ -51,9 +52,12 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
 
       verifyPostponed(responseCode)
 
-      response(ResponseFields.id)
+      authorizationParser.stringify(LeumiCardAuthorization(
+        transactionId = response(ResponseFields.id)
+      ))
+
     } match {
-      case Success(transactionId: String) => Success(transactionId)
+      case Success(authorizationKey) => Success(authorizationKey)
       case Failure(e: PaymentRejectedException) => Failure(e)
       case Failure(e) => Failure(PaymentErrorException(e.getMessage, e))
     }
@@ -87,7 +91,12 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
 
 
 
-  override def voidAuthorization(merchantKey: String, authorizationKey: String): Try[String] = ???
+  override def voidAuthorization(merchantKey: String, authorizationKey: String): Try[String] = {
+    Try{
+      val authorization = authorizationParser.parse(authorizationKey)
+      authorization.transactionId
+    }
+  }
 
   private def captureParamsMap(transactionId: String, merchant: LeumiCardMerchant): Map[String, String] = {
     Map(
