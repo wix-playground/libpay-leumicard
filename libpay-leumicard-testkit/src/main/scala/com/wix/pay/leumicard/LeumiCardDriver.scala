@@ -14,7 +14,7 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable
 
 class LeumiCardDriver(port: Int,
-                      password: String) {
+                      password: String = "") {
   private val probe = new EmbeddedHttpProbe(port, EmbeddedHttpProbe.NotFoundHandler)
   private val responseContentType = ContentType(MediaTypes.`text/html`)
 
