@@ -1,12 +1,20 @@
 package com.wix.pay.leumicard
 
+
+import com.google.api.client.http.UrlEncodedParser
 import com.wix.hoopoe.http.testkit.EmbeddedHttpProbe
 import com.wix.pay.creditcard.CreditCard
 import com.wix.pay.leumicard.model.RequestFields
 import com.wix.pay.model.{CurrencyAmount, Customer, Deal}
 import spray.http.{HttpEntity, _}
+import java.util.{List => JList}
 
-class LeumiCardDriver(port: Int) {
+import scala.collection.JavaConversions._
+
+import scala.collection.mutable
+
+class LeumiCardDriver(port: Int,
+                      password: String) {
   private val probe = new EmbeddedHttpProbe(port, EmbeddedHttpProbe.NotFoundHandler)
   private val responseContentType = ContentType(MediaTypes.`text/html`)
 
@@ -47,7 +55,7 @@ class LeumiCardDriver(port: Int) {
 
     def succeedsWith(transactionId: String) = {
       probe.handlers += {
-        case HttpRequest(HttpMethods.GET, uri, _, _, _) if isStubbedUri(uri) =>
+        case HttpRequest(HttpMethods.POST, _, _, entity, _) if isStubbedUri(entity) =>
           HttpResponse(
             status = StatusCodes.OK,
             entity = HttpEntity(responseContentType, successfulResponse(transactionId)))
@@ -56,7 +64,7 @@ class LeumiCardDriver(port: Int) {
 
     def errors = {
       probe.handlers += {
-        case HttpRequest(HttpMethods.GET, _, _, _, _) =>
+        case HttpRequest(HttpMethods.POST, _, _, entity, _) if isStubbedUri(entity) =>
           HttpResponse(
             status = StatusCodes.OK,
             entity = HttpEntity(responseContentType, failResponse))
@@ -65,7 +73,7 @@ class LeumiCardDriver(port: Int) {
 
     def isRejected = {
       probe.handlers += {
-        case HttpRequest(HttpMethods.GET, _, _, _, _) =>
+        case HttpRequest(HttpMethods.POST, _, _, entity, _) if isStubbedUri(entity) =>
           HttpResponse(
             status = StatusCodes.OK,
             entity = HttpEntity(responseContentType, rejectResponse))
@@ -73,9 +81,16 @@ class LeumiCardDriver(port: Int) {
     }
 
 
-    private def isStubbedUri(uri: Uri) = {
-      val uriParams = uri.query
-      asRequestParams.forall({ case (key, value) => uriParams.contains((key, value)) })
+    private def isStubbedUri(entity: HttpEntity) = {
+      val requestParams: Map[String, String] = urlDecode(entity.asString)
+
+      asRequestParams.forall { case (key, value) => requestParams.contains((key, value)) }
+    }
+
+    private def urlDecode(str: String): Map[String, String] = {
+      val params = mutable.LinkedHashMap[String, JList[String]]()
+      UrlEncodedParser.parse(str, mutableMapAsJavaMap(params))
+      params.mapValues( _(0) ).toMap
     }
 
     def successfulResponse(transactionId: String): String
@@ -120,7 +135,8 @@ class LeumiCardDriver(port: Int) {
         RequestFields.cvv -> creditCard.csc.get,
         RequestFields.expMonth -> creditCard.expiration.month.toString,
         RequestFields.expYear -> creditCard.expiration.year.toString,
-        RequestFields.installments -> "1"
+        RequestFields.installments -> "1",
+        RequestFields.password -> password
       )
 
     def successfulResponse(transactionId: String) =
@@ -135,7 +151,8 @@ class LeumiCardDriver(port: Int) {
       Map(
         RequestFields.masof -> masof,
         RequestFields.action -> "commitTrans",
-        RequestFields.transactionId -> authorizationKey
+        RequestFields.transactionId -> authorizationKey,
+        RequestFields.password -> password
       )
 
     def successfulResponse(transactionId: String): String =

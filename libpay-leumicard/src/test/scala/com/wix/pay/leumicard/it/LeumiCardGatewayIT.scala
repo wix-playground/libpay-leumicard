@@ -16,7 +16,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
   val leumiCardPort = 10019
   val requestFactory = new NetHttpTransport().createRequestFactory()
 
-  val driver = new LeumiCardDriver(port = leumiCardPort)
+  val driver = new LeumiCardDriver(port = leumiCardPort, password = "some-password")
 
   step {
     driver.startProbe()
@@ -150,7 +150,8 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
   trait Context extends Scope {
     val leumicardGateway = new LeumiCardGateway(
       requestFactory = requestFactory,
-      paymentsEndpointUrl = s"http://localhost:$leumiCardPort/")
+      paymentsEndpointUrl = s"http://localhost:$leumiCardPort/",
+      password = "some-password")
 
     val merchantParser = new JsonLeumiCardMerchantParser()
 

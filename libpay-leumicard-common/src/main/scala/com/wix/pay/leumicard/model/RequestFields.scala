@@ -18,4 +18,5 @@ object RequestFields {
   val installments = "Tash"
   val postpone = "Postpone"
   val transactionId = "TransId"
+  val password = "PassP"
 }

@@ -9,7 +9,7 @@ import com.wix.pay.model.{CurrencyAmount, Customer, Deal}
 import com.wix.pay.{PaymentErrorException, PaymentGateway, PaymentRejectedException}
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable
+import scala.collection.{JavaConversions, mutable}
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success, Try}
 
@@ -19,7 +19,8 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
                        readTimeout: Option[Duration] = None,
                        numberOfRetries: Int = 0,
                        paymentsEndpointUrl: String = Endpoints.leumiCardPayUrl,
-                       merchantParser: LeumiCardMerchantParser = new JsonLeumiCardMerchantParser
+                       merchantParser: LeumiCardMerchantParser = new JsonLeumiCardMerchantParser,
+                       password: String = ""
                       ) extends PaymentGateway {
 
   override def sale(merchantKey: String, creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal]): Try[String] = {
@@ -92,7 +93,8 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
     Map(
       RequestFields.action -> "commitTrans",
       RequestFields.masof -> merchant.masof,
-      RequestFields.transactionId -> transactionId
+      RequestFields.transactionId -> transactionId,
+      RequestFields.password -> password
     )
   }
 
@@ -113,15 +115,16 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
       RequestFields.cvv -> creditCard.csc.get,
       RequestFields.expMonth -> creditCard.expiration.month.toString,
       RequestFields.expYear -> creditCard.expiration.year.toString,
-      RequestFields.installments -> "1"
+      RequestFields.installments -> "1",
+      RequestFields.password -> password
     )
   }
 
   private def doRequest(params: Map[String, String]): Map[String, String] = {
     val url = new GenericUrl(paymentsEndpointUrl)
-    params.foreach({ case (key, value) => url.set(key, value) })
 
-    val httpRequest = requestFactory.buildGetRequest(url)
+    val content = new UrlEncodedContent(JavaConversions.mapAsJavaMap(params))
+    val httpRequest = requestFactory.buildPostRequest(url, content)
 
     connectTimeout foreach (to => httpRequest.setConnectTimeout(to.toMillis.toInt))
     readTimeout foreach (to => httpRequest.setReadTimeout(to.toMillis.toInt))
