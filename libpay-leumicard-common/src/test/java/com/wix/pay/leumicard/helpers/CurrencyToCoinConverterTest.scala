@@ -7,7 +7,7 @@ class CurrencyToCoinConverterTest extends SpecWithJUnit {
 
   "CurrencyToCoinConverter" should {
     "return the matching coin value for a given currency" in {
-      converter.currencyToCoin("NIS") must beEqualTo("1")
+      converter.currencyToCoin("ILS") must beEqualTo("1")
       converter.currencyToCoin("USD") must beEqualTo("2")
       converter.currencyToCoin("EUR") must beEqualTo("3")
       converter.currencyToCoin("GBP") must beEqualTo("4")
