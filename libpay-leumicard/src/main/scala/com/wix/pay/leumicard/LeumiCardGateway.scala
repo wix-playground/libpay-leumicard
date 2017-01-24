@@ -4,6 +4,7 @@ import java.util.{List => JList}
 
 import com.google.api.client.http._
 import com.wix.pay.creditcard.CreditCard
+import com.wix.pay.leumicard.helpers.CurrencyToCoinConverter
 import com.wix.pay.leumicard.model.{ErrorCodes, RequestFields, ResponseFields}
 import com.wix.pay.model.{CurrencyAmount, Customer, Deal}
 import com.wix.pay.{PaymentErrorException, PaymentGateway, PaymentRejectedException}
@@ -21,6 +22,7 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
                        paymentsEndpointUrl: String = Endpoints.leumiCardPayUrl,
                        merchantParser: LeumiCardMerchantParser = new JsonLeumiCardMerchantParser,
                        authorizationParser: LeumiCardAuthorizationParser = new JsonLeumiCardAuthorizationParser,
+                       currencyConverter: CurrencyToCoinConverter = new CurrencyToCoinConverter,
                        password: String = ""
                       ) extends PaymentGateway {
 
@@ -120,6 +122,7 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
       RequestFields.clientLName -> customer.get.lastName.get,
       RequestFields.infoPurchaseDesc -> deal.get.title.get,
       RequestFields.amount -> currencyAmount.amount.toString,
+      RequestFields.currency -> currencyConverter.currencyToCoin(currencyAmount.currency),
       RequestFields.creditCard -> creditCard.number,
       RequestFields.cvv -> creditCard.csc.get,
       RequestFields.expMonth -> creditCard.expiration.month.toString,

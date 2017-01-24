@@ -9,14 +9,16 @@ import com.wix.pay.model.{CurrencyAmount, Customer, Deal}
 import spray.http.{HttpEntity, _}
 import java.util.{List => JList}
 
-import scala.collection.JavaConversions._
+import com.wix.pay.leumicard.helpers.CurrencyToCoinConverter
 
+import scala.collection.JavaConversions._
 import scala.collection.mutable
 
 class LeumiCardDriver(port: Int,
                       password: String = "") {
   private val probe = new EmbeddedHttpProbe(port, EmbeddedHttpProbe.NotFoundHandler)
   private val responseContentType = ContentType(MediaTypes.`text/html`)
+  private val coinConverter = new CurrencyToCoinConverter()
 
   def startProbe() {
     probe.doStart()
@@ -122,22 +124,24 @@ class LeumiCardDriver(port: Int,
                          customer: Customer,
                          deal: Deal) extends RequestContext {
 
-    def asRequestParams =
+    def asRequestParams = {
       Map(
         RequestFields.masof -> masof,
         RequestFields.action -> "soft",
         RequestFields.userId -> creditCard.holderId.get,
         RequestFields.clientName -> customer.firstName.get,
         RequestFields.clientLName -> customer.lastName.get,
-        RequestFields.infoPurchaseDesc ->  deal.title.get,
+        RequestFields.infoPurchaseDesc -> deal.title.get,
         RequestFields.amount -> currencyAmount.amount.toString,
         RequestFields.creditCard -> creditCard.number,
         RequestFields.cvv -> creditCard.csc.get,
         RequestFields.expMonth -> creditCard.expiration.month.toString,
         RequestFields.expYear -> creditCard.expiration.year.toString,
         RequestFields.installments -> "1",
-        RequestFields.password -> password
+        RequestFields.password -> password,
+        RequestFields.currency -> coinConverter.currencyToCoin(currencyAmount.currency)
       )
+    }
 
     def successfulResponse(transactionId: String) =
       s"Id=$transactionId&CCode=0&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="

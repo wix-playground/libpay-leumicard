@@ -5,12 +5,13 @@ package com.wix.pay.leumicard.model
   */
 object RequestFields {
   val masof = "Masof"
-  val action = "Action"
+  val action = "action"
   val userId = "UserId"
   val clientName = "ClientName"
   val clientLName = "ClientLName"
   val infoPurchaseDesc = "Info"
   val amount = "Amount"
+  val currency = "coin"
   val creditCard = "CC"
   val cvv = "Cvv"
   val expMonth = "Tmonth"

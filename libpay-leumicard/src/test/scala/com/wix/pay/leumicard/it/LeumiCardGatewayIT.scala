@@ -20,8 +20,6 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
   val driver = new LeumiCardDriver(port = leumiCardPort, password = "some-password")
   val authorizationParser = new JsonLeumiCardAuthorizationParser
 
-
-
   step {
     driver.startProbe()
   }
