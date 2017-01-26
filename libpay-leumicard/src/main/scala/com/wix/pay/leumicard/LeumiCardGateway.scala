@@ -177,7 +177,7 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
   }
 
   private def isReject: PartialFunction[String, Unit] = {
-    case ErrorCodes.Rejected => throw PaymentRejectedException()
+    case ErrorCodes.Rejected | ErrorCodes.WrongCvvOrId => throw PaymentRejectedException()
   }
 }
 

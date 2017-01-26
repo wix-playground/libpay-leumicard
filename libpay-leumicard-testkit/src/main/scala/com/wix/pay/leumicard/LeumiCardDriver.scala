@@ -98,10 +98,10 @@ class LeumiCardDriver(port: Int,
     def successfulResponse(transactionId: String): String
 
     def failResponse =
-      s"Id=0&CCode=6&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
+      s"Id=0&CCode=1&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
 
     def rejectResponse =
-      s"Id=0&CCode=33&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
+      s"Id=0&CCode=6&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
 
   }
 
