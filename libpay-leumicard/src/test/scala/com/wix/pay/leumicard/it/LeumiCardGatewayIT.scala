@@ -81,6 +81,14 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
 
       assertFailure[PaymentRejectedException](saleResult)
     }
+
+    "fail with PaymentErrorException for erroneous response" in new Context {
+      givenSaleRequestToLeumiCard.returnsIllegalMasof
+
+      val saleResult = executeValidSale
+
+      assertFailure[PaymentErrorException](saleResult)
+    }
   }
 
   "authorize request via Leumi Card gateway" should {

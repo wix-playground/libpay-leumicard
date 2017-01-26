@@ -40,6 +40,7 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
     } match {
       case Success(transactionId: String) => Success(transactionId)
       case Failure(e: PaymentRejectedException) => Failure(e)
+      case Failure(e: IllegalArgumentException) => Failure(PaymentErrorException(s"Probably erroneous Masof: ${e.getMessage}", e))
       case Failure(e) => Failure(PaymentErrorException(e.getMessage, e))
     }
   }

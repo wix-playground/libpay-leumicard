@@ -82,6 +82,17 @@ class LeumiCardDriver(port: Int,
       }
     }
 
+    def returnsIllegalMasof = {
+      probe.handlers += {
+        case HttpRequest(HttpMethods.POST, _, _, entity, _) if isStubbedUri(entity) =>
+          HttpResponse(
+            status = StatusCodes.OK,
+            entity = HttpEntity(responseContentType, illegalMasofResponse))
+      }
+    }
+
+    private def illegalMasofResponse =
+      "<p align=center dir=rtl style=\"font-size:200%;padding-left : 100px;\" class=\"tagline\">ùâéàä</p>\n"
 
     private def isStubbedUri(entity: HttpEntity) = {
       val requestParams: Map[String, String] = urlDecode(entity.asString)
