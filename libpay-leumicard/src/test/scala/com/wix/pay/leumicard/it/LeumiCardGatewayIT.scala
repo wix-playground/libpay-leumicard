@@ -4,7 +4,7 @@ import com.google.api.client.http.javanet.NetHttpTransport
 import com.wix.pay.{PaymentErrorException, PaymentRejectedException}
 import com.wix.pay.creditcard.{CreditCard, CreditCardOptionalFields, YearMonth}
 import com.wix.pay.leumicard._
-import com.wix.pay.model.{CurrencyAmount, Customer, Deal, Name}
+import com.wix.pay.model._
 import org.specs2.matcher.Matcher
 import org.specs2.mutable.SpecWithJUnit
 import org.specs2.specification.Scope
@@ -39,7 +39,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
       val saleResult = leumicardGateway.sale(
         merchantKey = "bla bla",
         creditCard = buyerCreditCard,
-        currencyAmount = currencyAmount,
+        payment = payment,
         customer = Some(customer),
         deal = Some(deal))
 
@@ -58,7 +58,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
       val saleResult = leumicardGateway.sale(
         merchantKey = merchantKey,
         creditCard = buyerCreditCard,
-        currencyAmount = currencyAmount,
+        payment = payment,
         customer = Some(customer))
 
       assertFailure[PaymentErrorException](saleResult)
@@ -68,7 +68,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
       val saleResult = leumicardGateway.sale(
         merchantKey = merchantKey,
         creditCard = buyerCreditCard,
-        currencyAmount = currencyAmount,
+        payment = payment,
         deal = Some(deal))
 
       assertFailure[PaymentErrorException](saleResult)
@@ -104,7 +104,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
       val authorizeResult = leumicardGateway.authorize(
         merchantKey = "bla bla",
         creditCard = buyerCreditCard,
-        currencyAmount = currencyAmount,
+        payment = payment,
         customer = Some(customer),
         deal = Some(deal))
 
@@ -123,7 +123,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
       val authorizeResult = leumicardGateway.authorize(
         merchantKey = merchantKey,
         creditCard = buyerCreditCard,
-        currencyAmount = currencyAmount,
+        payment = payment,
         customer = Some(customer))
 
       assertFailure[PaymentErrorException](authorizeResult)
@@ -142,7 +142,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
     "fail for invalid merchant format" in new Context {
       val captureResult = leumicardGateway.capture(
         merchantKey = "bla bla",
-        amount = currencyAmount.amount,
+        amount = payment.currencyAmount.amount,
         authorizationKey = successfulTransactionId)
 
       assertFailure[PaymentErrorException](captureResult)
@@ -167,7 +167,8 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
 
     val merchant = LeumiCardMerchant(masof = "012345678")
     val merchantKey = merchantParser.stringify(merchant)
-    val currencyAmount = CurrencyAmount("USD", 33.3)
+    val payment = Payment(currencyAmount = CurrencyAmount("USD", 33.3), installments = 2)
+
     val buyerCreditCard = CreditCard(
       "4580458045804580",
       YearMonth(2020, 12),
@@ -191,7 +192,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
     def givenSaleRequestToLeumiCard: driver.SaleContext = {
       driver.aSaleFor(
         masof = merchant.masof,
-        currencyAmount = currencyAmount,
+        payment = payment,
         creditCard = buyerCreditCard,
         customer = customer,
         deal = deal)
@@ -200,7 +201,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
     def givenAuthorizeRequestToLeumiCard: driver.AuthorizeContext = {
       driver.anAuthorizeFor(
         masof = merchant.masof,
-        currencyAmount = currencyAmount,
+        payment = payment,
         creditCard = buyerCreditCard,
         customer = customer,
         deal = deal)
@@ -209,7 +210,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
     def givenCaptureRequestToLeumiCard: driver.CaptureContext = {
       driver.aCaptureFor(
         masof = merchant.masof,
-        currencyAmount = currencyAmount,
+        currencyAmount = payment.currencyAmount,
         authorizationKey = successfulTransactionId)
     }
 
@@ -217,7 +218,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
       leumicardGateway.sale(
         merchantKey = merchantKey,
         creditCard = buyerCreditCard,
-        currencyAmount = currencyAmount,
+        payment = payment,
         customer = Some(customer),
         deal = Some(deal))
 
@@ -225,7 +226,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
       leumicardGateway.authorize(
         merchantKey = merchantKey,
         creditCard = buyerCreditCard,
-        currencyAmount = currencyAmount,
+        payment = payment,
         customer = Some(customer),
         deal = Some(deal))
 
@@ -233,7 +234,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
       leumicardGateway.capture(
         merchantKey = merchantKey,
         authorizationKey = successfulTransactionId,
-        amount = currencyAmount.amount)
+        amount = payment.currencyAmount.amount)
   }
 
   def assertFailure[T: ClassTag](result: Try[String]) = {

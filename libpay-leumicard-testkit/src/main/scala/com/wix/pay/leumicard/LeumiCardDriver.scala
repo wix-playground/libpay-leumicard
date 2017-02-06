@@ -5,7 +5,7 @@ import com.google.api.client.http.UrlEncodedParser
 import com.wix.hoopoe.http.testkit.EmbeddedHttpProbe
 import com.wix.pay.creditcard.CreditCard
 import com.wix.pay.leumicard.model.RequestFields
-import com.wix.pay.model.{CurrencyAmount, Customer, Deal}
+import com.wix.pay.model.{CurrencyAmount, Customer, Deal, Payment}
 import spray.http.{HttpEntity, _}
 import java.util.{List => JList}
 
@@ -33,18 +33,18 @@ class LeumiCardDriver(port: Int,
   }
 
   def anAuthorizeFor(masof: String,
-                     currencyAmount: CurrencyAmount,
+                     payment: Payment,
                      creditCard: CreditCard,
                      customer: Customer,
                      deal: Deal) =
-    AuthorizeContext(masof, currencyAmount, creditCard, customer, deal)
+    AuthorizeContext(masof, payment, creditCard, customer, deal)
 
   def aSaleFor(masof: String,
-               currencyAmount: CurrencyAmount,
+               payment: Payment,
                creditCard: CreditCard,
                customer: Customer,
                deal: Deal) =
-    SaleContext(masof, currencyAmount, creditCard, customer, deal)
+    SaleContext(masof, payment, creditCard, customer, deal)
 
   def aCaptureFor(masof: String,
                   currencyAmount: CurrencyAmount,
@@ -117,12 +117,12 @@ class LeumiCardDriver(port: Int,
   }
 
   case class AuthorizeContext(masof: String,
-                              currencyAmount: CurrencyAmount,
+                              payment: Payment,
                               creditCard: CreditCard,
                               customer: Customer,
                               deal: Deal) extends RequestContext {
     def asRequestParams =
-      SaleContext(masof, currencyAmount, creditCard, customer, deal).asRequestParams + (RequestFields.postpone -> "True")
+      SaleContext(masof, payment, creditCard, customer, deal).asRequestParams + (RequestFields.postpone -> "True")
 
     def successfulResponse(transactionId: String) =
       s"Id=$transactionId&CCode=800&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
@@ -130,7 +130,7 @@ class LeumiCardDriver(port: Int,
   }
 
   case class SaleContext(masof: String,
-                         currencyAmount: CurrencyAmount,
+                         payment: Payment,
                          creditCard: CreditCard,
                          customer: Customer,
                          deal: Deal) extends RequestContext {
@@ -143,14 +143,14 @@ class LeumiCardDriver(port: Int,
         RequestFields.clientName -> customer.firstName.get,
         RequestFields.clientLName -> customer.lastName.get,
         RequestFields.infoPurchaseDesc -> deal.title.get,
-        RequestFields.amount -> currencyAmount.amount.toString,
+        RequestFields.amount -> payment.currencyAmount.amount.toString,
         RequestFields.creditCard -> creditCard.number,
         RequestFields.cvv -> creditCard.csc.get,
         RequestFields.expMonth -> creditCard.expiration.month.toString,
         RequestFields.expYear -> creditCard.expiration.year.toString,
-        RequestFields.installments -> "1",
+        RequestFields.installments -> payment.installments.toString,
         RequestFields.password -> password,
-        RequestFields.currency -> coinConverter.currencyToCoin(currencyAmount.currency)
+        RequestFields.currency -> coinConverter.currencyToCoin(payment.currencyAmount.currency)
       )
     }
 

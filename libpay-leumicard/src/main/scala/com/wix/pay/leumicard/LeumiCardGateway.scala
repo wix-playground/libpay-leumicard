@@ -6,7 +6,7 @@ import com.google.api.client.http._
 import com.wix.pay.creditcard.CreditCard
 import com.wix.pay.leumicard.helpers.CurrencyToCoinConverter
 import com.wix.pay.leumicard.model.{ErrorCodes, RequestFields, ResponseFields}
-import com.wix.pay.model.{CurrencyAmount, Customer, Deal}
+import com.wix.pay.model.{Customer, Deal, Payment}
 import com.wix.pay.{PaymentErrorException, PaymentGateway, PaymentRejectedException}
 
 import scala.collection.JavaConversions._
@@ -26,12 +26,12 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
                        password: String = ""
                       ) extends PaymentGateway {
 
-  override def sale(merchantKey: String, creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal]): Try[String] = {
+  override def sale(merchantKey: String, creditCard: CreditCard, payment: Payment, customer: Option[Customer], deal: Option[Deal]): Try[String] = {
     Try {
       verifyRequiredParams(creditCard, customer, deal)
 
       val merchant = merchantParser.parse(merchantKey)
-      val response = doRequest(saleParamsMap(creditCard, currencyAmount, customer, deal, merchant))
+      val response = doRequest(saleParamsMap(creditCard, payment, customer, deal, merchant))
       val responseCode = response(ResponseFields.ccode)
 
       verifySuccess(responseCode)
@@ -45,12 +45,12 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
     }
   }
 
-  override def authorize(merchantKey: String, creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal]): Try[String] = {
+  override def authorize(merchantKey: String, creditCard: CreditCard, payment: Payment, customer: Option[Customer], deal: Option[Deal]): Try[String] = {
     Try {
       verifyRequiredParams(creditCard, customer, deal)
 
       val merchant = merchantParser.parse(merchantKey)
-      val response = doRequest(authorizeParamsMap(creditCard, currencyAmount, customer, deal, merchant))
+      val response = doRequest(authorizeParamsMap(creditCard, payment, customer, deal, merchant))
       val responseCode = response(ResponseFields.ccode)
 
       verifyPostponed(responseCode)
@@ -110,11 +110,11 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
     )
   }
 
-  private def authorizeParamsMap(creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal], merchant: LeumiCardMerchant): Map[String, String] = {
-    saleParamsMap(creditCard, currencyAmount, customer, deal, merchant) + (RequestFields.postpone -> "True")
+  private def authorizeParamsMap(creditCard: CreditCard, payment: Payment, customer: Option[Customer], deal: Option[Deal], merchant: LeumiCardMerchant): Map[String, String] = {
+    saleParamsMap(creditCard, payment, customer, deal, merchant) + (RequestFields.postpone -> "True")
   }
 
-  private def saleParamsMap(creditCard: CreditCard, currencyAmount: CurrencyAmount, customer: Option[Customer], deal: Option[Deal], merchant: LeumiCardMerchant): Map[String, String] = {
+  private def saleParamsMap(creditCard: CreditCard, payment: Payment, customer: Option[Customer], deal: Option[Deal], merchant: LeumiCardMerchant): Map[String, String] = {
     Map(
       RequestFields.masof -> merchant.masof,
       RequestFields.action -> "soft",
@@ -122,13 +122,13 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
       RequestFields.clientName -> customer.get.firstName.get,
       RequestFields.clientLName -> customer.get.lastName.get,
       RequestFields.infoPurchaseDesc -> deal.get.title.get,
-      RequestFields.amount -> currencyAmount.amount.toString,
-      RequestFields.currency -> currencyConverter.currencyToCoin(currencyAmount.currency),
+      RequestFields.amount -> payment.currencyAmount.amount.toString,
+      RequestFields.currency -> currencyConverter.currencyToCoin(payment.currencyAmount.currency),
       RequestFields.creditCard -> creditCard.number,
       RequestFields.cvv -> creditCard.csc.get,
       RequestFields.expMonth -> creditCard.expiration.month.toString,
       RequestFields.expYear -> creditCard.expiration.year.toString,
-      RequestFields.installments -> "1",
+      RequestFields.installments -> payment.installments.toString,
       RequestFields.password -> password
     )
   }
