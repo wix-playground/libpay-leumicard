@@ -143,7 +143,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
       val captureResult = leumicardGateway.capture(
         merchantKey = "bla bla",
         amount = payment.currencyAmount.amount,
-        authorizationKey = successfulTransactionId)
+        authorizationKey = authorizationParser.stringify(LeumiCardAuthorization(successfulTransactionId)))
 
       assertFailure[PaymentErrorException](captureResult)
     }
@@ -233,7 +233,7 @@ class LeumiCardGatewayIT extends SpecWithJUnit {
     def executeValidCapture =
       leumicardGateway.capture(
         merchantKey = merchantKey,
-        authorizationKey = successfulTransactionId,
+        authorizationKey = authorizationParser.stringify(LeumiCardAuthorization(successfulTransactionId)),
         amount = payment.currencyAmount.amount)
   }
 

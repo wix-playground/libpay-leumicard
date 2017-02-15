@@ -5,7 +5,7 @@ import java.util.{List => JList}
 import com.google.api.client.http._
 import com.wix.pay.creditcard.CreditCard
 import com.wix.pay.leumicard.helpers.CurrencyToCoinConverter
-import com.wix.pay.leumicard.model.{ErrorCodes, RequestFields, ResponseFields}
+import com.wix.pay.leumicard.model.ResponseFields
 import com.wix.pay.model.{Customer, Deal, Payment}
 import com.wix.pay.{PaymentErrorException, PaymentGateway, PaymentRejectedException}
 
@@ -26,73 +26,22 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
                        password: String = ""
                       ) extends PaymentGateway {
 
+  private val saleExecutor = new LeumiCardSaleExecutor(currencyConverter, password)
+  private val authorizeExecutor = new LeumiCardAuthorizeExecutor(currencyConverter, password, authorizationParser)
+  private val captureExecutor = new LeumiCardCaptureExecutor(password)
+
   override def sale(merchantKey: String, creditCard: CreditCard, payment: Payment, customer: Option[Customer], deal: Option[Deal]): Try[String] = {
-    Try {
-      verifyRequiredParams(creditCard, customer, deal)
-
-      val merchant = merchantParser.parse(merchantKey)
-      val response = doRequest(saleParamsMap(creditCard, payment, customer, deal, merchant))
-      val responseCode = response(ResponseFields.ccode)
-
-      verifySuccess(responseCode)
-
-      response(ResponseFields.id)
-    } match {
-      case Success(transactionId: String) => Success(transactionId)
-      case Failure(e: PaymentRejectedException) => Failure(e)
-      case Failure(e: IllegalArgumentException) => Failure(PaymentErrorException(s"Probably erroneous Masof: ${e.getMessage}", e))
-      case Failure(e) => Failure(PaymentErrorException(e.getMessage, e))
-    }
+    execute(saleExecutor, merchantKey, creditCard, payment, customer, deal)
   }
 
   override def authorize(merchantKey: String, creditCard: CreditCard, payment: Payment, customer: Option[Customer], deal: Option[Deal]): Try[String] = {
-    Try {
-      verifyRequiredParams(creditCard, customer, deal)
-
-      val merchant = merchantParser.parse(merchantKey)
-      val response = doRequest(authorizeParamsMap(creditCard, payment, customer, deal, merchant))
-      val responseCode = response(ResponseFields.ccode)
-
-      verifyPostponed(responseCode)
-
-      authorizationParser.stringify(LeumiCardAuthorization(
-        transactionId = response(ResponseFields.id)
-      ))
-
-    } match {
-      case Success(authorizationKey) => Success(authorizationKey)
-      case Failure(e: PaymentRejectedException) => Failure(e)
-      case Failure(e) => Failure(PaymentErrorException(e.getMessage, e))
-    }
+    execute(authorizeExecutor, merchantKey, creditCard, payment, customer, deal)
   }
 
   override def capture(merchantKey: String, authorizationKey: String, amount: Double): Try[String] = {
-    Try {
-      val merchant = merchantParser.parse(merchantKey)
-      val response = doRequest(captureParamsMap(authorizationKey, merchant))
-      val responseCode = response(ResponseFields.ccode)
-
-      verifySuccess(responseCode)
-
-      response(ResponseFields.id)
-    } match {
-      case Success(transactionId: String) => Success(transactionId)
-      case Failure(e: PaymentRejectedException) => Failure(e)
-      case Failure(e) => Failure(PaymentErrorException(e.getMessage, e))
-    }
+    val authorization = authorizationParser.parse(authorizationKey)
+    execute(captureExecutor, merchantKey, null, null, None, None, Some(authorization.transactionId))
   }
-
-  private def verifyRequiredParams(creditCard: CreditCard, customer: Option[Customer], deal: Option[Deal]): Unit = {
-    require(deal.isDefined, "Deal is mandatory for Leumi Card")
-    require(deal.get.title.isDefined, "Deal Title is mandatory for Leumi Card")
-    require(customer.isDefined, "Customer is mandatory for Leumi Card")
-    require(customer.get.firstName.isDefined, "Customer First Name is mandatory for Leumi Card")
-    require(customer.get.lastName.isDefined, "Customer Last Name is mandatory for Leumi Card")
-    require(creditCard.csc.isDefined, "Credit Card CVV is mandatory for Leumi Card")
-    require(creditCard.holderId.isDefined, "Credit Card Holder ID is mandatory for Leumi Card")
-  }
-
-
 
   override def voidAuthorization(merchantKey: String, authorizationKey: String): Try[String] = {
     Try{
@@ -101,36 +50,29 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
     }
   }
 
-  private def captureParamsMap(transactionId: String, merchant: LeumiCardMerchant): Map[String, String] = {
-    Map(
-      RequestFields.action -> "commitTrans",
-      RequestFields.masof -> merchant.masof,
-      RequestFields.transactionId -> transactionId,
-      RequestFields.password -> password
-    )
-  }
+  private def execute(executor: LeumiCardRequestExecutor,
+                      merchantKey: String,
+                      creditCard: CreditCard,
+                      payment: Payment,
+                      customer: Option[Customer],
+                      deal: Option[Deal],
+                      transactionId: Option[String] = None) = {
+    Try {
+      executor.verifyRequiredParams(creditCard, customer, deal)
 
-  private def authorizeParamsMap(creditCard: CreditCard, payment: Payment, customer: Option[Customer], deal: Option[Deal], merchant: LeumiCardMerchant): Map[String, String] = {
-    saleParamsMap(creditCard, payment, customer, deal, merchant) + (RequestFields.postpone -> "True")
-  }
+      val merchant = merchantParser.parse(merchantKey)
+      val response = doRequest(executor.paramsMap(creditCard, payment, customer, deal, merchant, transactionId))
+      val responseCode = response(ResponseFields.ccode)
 
-  private def saleParamsMap(creditCard: CreditCard, payment: Payment, customer: Option[Customer], deal: Option[Deal], merchant: LeumiCardMerchant): Map[String, String] = {
-    Map(
-      RequestFields.masof -> merchant.masof,
-      RequestFields.action -> "soft",
-      RequestFields.userId -> creditCard.holderId.get,
-      RequestFields.clientName -> customer.get.firstName.get,
-      RequestFields.clientLName -> customer.get.lastName.get,
-      RequestFields.infoPurchaseDesc -> deal.get.title.get,
-      RequestFields.amount -> payment.currencyAmount.amount.toString,
-      RequestFields.currency -> currencyConverter.currencyToCoin(payment.currencyAmount.currency),
-      RequestFields.creditCard -> creditCard.number,
-      RequestFields.cvv -> creditCard.csc.get,
-      RequestFields.expMonth -> creditCard.expiration.month.toString,
-      RequestFields.expYear -> creditCard.expiration.year.toString,
-      RequestFields.installments -> payment.installments.toString,
-      RequestFields.password -> password
-    )
+      executor.verifyResponse(responseCode)
+
+      executor.buildResponse(response(ResponseFields.id))
+    } match {
+      case Success(transactionId: String) => Success(transactionId)
+      case Failure(e: PaymentRejectedException) => Failure(e)
+      case Failure(e: IllegalArgumentException) => Failure(PaymentErrorException(s"Probably erroneous Masof: ${e.getMessage}", e))
+      case Failure(e) => Failure(PaymentErrorException(e.getMessage, e))
+    }
   }
 
   private def doRequest(params: Map[String, String]): Map[String, String] = {
@@ -155,30 +97,6 @@ class LeumiCardGateway(requestFactory: HttpRequestFactory,
     } finally {
       httpResponse.ignore()
     }
-  }
-
-  private def verifySuccess(code: String): Unit = {
-    (isSuccess orElse isReject orElse throwErrorException)(code)
-  }
-
-  private def verifyPostponed(code: String): Unit = {
-    (isPostpone orElse isReject orElse throwErrorException)(code)
-  }
-
-  private def throwErrorException: PartialFunction[String, Unit] = {
-    case code => throw PaymentErrorException(code)
-  }
-
-  private def isPostpone: PartialFunction[String, Unit] = {
-    case ErrorCodes.Postponed =>
-  }
-
-  private def isSuccess: PartialFunction[String, Unit] = {
-    case ErrorCodes.Success =>
-  }
-
-  private def isReject: PartialFunction[String, Unit] = {
-    case ErrorCodes.Rejected | ErrorCodes.WrongCvvOrId => throw PaymentRejectedException()
   }
 }
 
