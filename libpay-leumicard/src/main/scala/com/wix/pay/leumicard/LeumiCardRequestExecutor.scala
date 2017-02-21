@@ -25,7 +25,7 @@ abstract class LeumiCardRequestExecutor {
   }
 
   private def throwErrorException: PartialFunction[String, Unit] = {
-    case code => throw PaymentErrorException(code)
+    case code => throw PaymentErrorException(s"Leumi Card response code: $code")
   }
 
   private def isPostpone: PartialFunction[String, Unit] = {
