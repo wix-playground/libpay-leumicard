@@ -1,36 +1,30 @@
 package com.wix.pay.leumicard
 
 
+import scala.collection.JavaConversions._
+import scala.collection.mutable
+import java.util.{List => JList}
+import akka.http.scaladsl.model._
 import com.google.api.client.http.UrlEncodedParser
-import com.wix.hoopoe.http.testkit.EmbeddedHttpProbe
 import com.wix.pay.creditcard.CreditCard
 import com.wix.pay.leumicard.model.RequestFields
 import com.wix.pay.model.{CurrencyAmount, Customer, Deal, Payment}
-import spray.http.{HttpEntity, _}
-import java.util.{List => JList}
-
+import com.wix.e2e.http.api.StubWebServer
+import com.wix.e2e.http.client.extractors.HttpMessageExtractors._
+import com.wix.e2e.http.server.WebServerFactory.aStubWebServer
 import com.wix.pay.leumicard.helpers.CurrencyToCoinConverter
 
-import scala.collection.JavaConversions._
-import scala.collection.mutable
 
 class LeumiCardDriver(port: Int,
                       password: String = "") {
-  private val probe = new EmbeddedHttpProbe(port, EmbeddedHttpProbe.NotFoundHandler)
-  private val responseContentType = ContentType(MediaTypes.`text/html`)
+  private val server: StubWebServer = aStubWebServer.onPort(port).build
+  private val responseContentType = ContentType(MediaTypes.`text/html`, HttpCharsets.`UTF-8`)
   private val coinConverter = new CurrencyToCoinConverter()
 
-  def startProbe() {
-    probe.doStart()
-  }
+  def start(): Unit = server.start()
+  def stop(): Unit = server.stop()
+  def reset(): Unit = server.replaceWith()
 
-  def stopProbe() {
-    probe.doStop()
-  }
-
-  def resetProbe() {
-    probe.handlers.clear()
-  }
 
   def anAuthorizeFor(masof: String,
                      payment: Payment,
@@ -51,21 +45,21 @@ class LeumiCardDriver(port: Int,
                   authorizationKey: String) =
     CaptureContext(masof, currencyAmount, authorizationKey)
 
-  trait RequestContext {
 
+  trait RequestContext {
     def asRequestParams: Map[String, String]
 
-    def succeedsWith(transactionId: String) = {
-      probe.handlers += {
+    def succeedsWith(transactionId: String): Unit = {
+      server.appendAll {
         case HttpRequest(HttpMethods.POST, _, _, entity, _) if isStubbedUri(entity) =>
-          HttpResponse(
-            status = StatusCodes.OK,
-            entity = HttpEntity(responseContentType, successfulResponse(transactionId)))
+            HttpResponse(
+              status = StatusCodes.OK,
+              entity = HttpEntity(responseContentType, successfulResponse(transactionId)))
       }
     }
 
-    def errors = {
-      probe.handlers += {
+    def errors(): Unit = {
+      server.appendAll {
         case HttpRequest(HttpMethods.POST, _, _, entity, _) if isStubbedUri(entity) =>
           HttpResponse(
             status = StatusCodes.OK,
@@ -73,8 +67,8 @@ class LeumiCardDriver(port: Int,
       }
     }
 
-    def isRejected = {
-      probe.handlers += {
+    def getsRejected(): Unit = {
+      server.appendAll {
         case HttpRequest(HttpMethods.POST, _, _, entity, _) if isStubbedUri(entity) =>
           HttpResponse(
             status = StatusCodes.OK,
@@ -82,8 +76,8 @@ class LeumiCardDriver(port: Int,
       }
     }
 
-    def returnsIllegalMasof = {
-      probe.handlers += {
+    def returnsIllegalMasof(): Unit = {
+      server.appendAll {
         case HttpRequest(HttpMethods.POST, _, _, entity, _) if isStubbedUri(entity) =>
           HttpResponse(
             status = StatusCodes.OK,
@@ -95,7 +89,7 @@ class LeumiCardDriver(port: Int,
       "<p align=center dir=rtl style=\"font-size:200%;padding-left : 100px;\" class=\"tagline\">ùâéàä</p>\n"
 
     private def isStubbedUri(entity: HttpEntity) = {
-      val requestParams: Map[String, String] = urlDecode(entity.asString)
+      val requestParams: Map[String, String] = urlDecode(entity.extractAsString)
 
       asRequestParams.forall { case (key, value) => requestParams.contains((key, value)) }
     }
@@ -107,12 +101,8 @@ class LeumiCardDriver(port: Int,
     }
 
     def successfulResponse(transactionId: String): String
-
-    def failResponse =
-      s"Id=0&CCode=1&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
-
-    def rejectResponse =
-      s"Id=0&CCode=6&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
+    def failResponse: String = "Id=0&CCode=1&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
+    def rejectResponse: String = "Id=0&CCode=6&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
 
   }
 
@@ -121,12 +111,11 @@ class LeumiCardDriver(port: Int,
                               creditCard: CreditCard,
                               customer: Customer,
                               deal: Deal) extends RequestContext {
-    def asRequestParams =
+    def asRequestParams: Map[String, String] =
       SaleContext(masof, payment, creditCard, customer, deal).asRequestParams + (RequestFields.postpone -> "True")
 
-    def successfulResponse(transactionId: String) =
+    def successfulResponse(transactionId: String): String =
       s"Id=$transactionId&CCode=800&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
-
   }
 
   case class SaleContext(masof: String,
@@ -135,7 +124,7 @@ class LeumiCardDriver(port: Int,
                          customer: Customer,
                          deal: Deal) extends RequestContext {
 
-    def asRequestParams = {
+    def asRequestParams: Map[String, String] = {
       Map(
         RequestFields.masof -> masof,
         RequestFields.action -> "soft",
@@ -150,8 +139,7 @@ class LeumiCardDriver(port: Int,
         RequestFields.expYear -> creditCard.expiration.year.toString,
         RequestFields.installments -> payment.installments.toString,
         RequestFields.password -> password,
-        RequestFields.currency -> coinConverter.currencyToCoin(payment.currencyAmount.currency)
-      )
+        RequestFields.currency -> coinConverter.currencyToCoin(payment.currencyAmount.currency))
     }
 
     def successfulResponse(transactionId: String) =
@@ -167,11 +155,9 @@ class LeumiCardDriver(port: Int,
         RequestFields.masof -> masof,
         RequestFields.action -> "commitTrans",
         RequestFields.transactionId -> authorizationKey,
-        RequestFields.password -> password
-      )
+        RequestFields.password -> password)
 
     def successfulResponse(transactionId: String): String =
       s"Id=$transactionId&CCode=0&Amount=1000&ACode=&Fild1=&Fild2=&Fild3="
-
   }
 }
